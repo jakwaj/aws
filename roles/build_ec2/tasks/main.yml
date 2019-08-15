@@ -1,0 +1,44 @@
+---
+- name: Create security group
+  ec2_group:
+    name: 'ec2_sg-{{ ansible_date_time.epoch }}'
+    description: Security group with open SSH port
+    vpc_id: '{{ vpc_id }}'
+    region: '{{ region }}'
+    rules:
+      - proto: tcp
+        ports:
+          - 22
+        cidr_ip: 0.0.0.0/0
+  register: ec2_sg
+
+- name: EC2_SG
+  debug:
+    var: ec2_sg
+
+- name: Launch EC2 instance_type
+  ec2:
+    region: '{{ region }}'
+    key_name: '{{ key_name }}'
+    instance_type: '{{ instance_type }}'
+    image: '{{ image }}'
+    group: 'ec2_sg-{{ ansible_date_time.epoch }}'
+    wait: yes
+    instance_tags:
+        name: '{{ server_name }}'
+  register: ec2_out
+
+- name: EC2
+  debug:
+    var: ec2_out
+
+- name: Add new instance to host group
+  add_host:
+    name: '{{ item.public_ip }}'
+    groups: '{{ server_name }}'
+    ec2_id: '{{ item.id }}'
+  with_items: '{{ ec2_out.instances }}'
+
+- name: Wait for SSH
+  wait_for: host={{ item.public_dns_name }} port=22 state=started
+  with_items: '{{ ec2_out.instances }}'

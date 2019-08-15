@@ -1,0 +1,9 @@
+---
+- name: CREATE STACK
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  roles:
+    - role: create_stack
+  vars_files:
+    - vars/common.yml

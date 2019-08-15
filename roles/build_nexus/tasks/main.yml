@@ -1,0 +1,63 @@
+---
+- name: Update yum
+  become: yes
+  shell: yum -y update
+
+- name: Install packages
+  become: yes
+  shell: yum install -y {{ item }}
+  with_items:
+    - java-1.8.0-openjdk
+    - maven
+    - maven-dependency-plugin
+    - cloud-init
+
+- name: Download and setup Nexus
+  become: yes
+  shell: |
+    cd /opt
+    wget https://download.sonatype.com/nexus/3/latest-unix.tar.gz
+    mkdir temp
+    tar -zxvf latest-unix.tar.gz -C /opt/temp
+    mv temp/sonatype-work .
+    mv temp/* nexus
+    rm -f latest-unix.tar.gz
+    rm -rf temp
+
+- name: Add nexus user
+  become: yes
+  shell: adduser nexus
+
+- name: Allow nexus user to have passwordless sudo
+  become: yes
+  lineinfile:
+    dest: /etc/sudoers
+    state: present
+    insertbefore: "## Allows members of the 'sys' group to run networking"
+    firstmatch: yes
+    line: 'nexus ALL=(ALL) NOPASSWD: ALL'
+    validate: 'visudo -cf %s'
+
+- name: Grant sudo access to manage nexus service
+  become: yes
+  shell: |
+    chown -R nexus:nexus /opt/nexus
+    chown -R nexus:nexus /opt/sonatype-work/
+
+- name: Set nexus.rc line
+  become: yes
+  lineinfile:
+    dest: /opt/nexus/bin/nexus.rc
+    state: present
+    regexp: '#run_as_user=""'
+    line: run_as_user="nexus"
+    backrefs: yes
+
+- name: Add nexus as a service
+  become: yes
+  shell: ln -s /opt/nexus/bin/nexus /etc/init.d/nexus
+
+- name: Create folder for EFS
+  become: yes
+  shell: mkdir /mnt/efs
+

@@ -1,0 +1,13 @@
+---
+- name: Terminate the EC2 instance
+  ec2:
+    state: absent
+    region: "{{ region }}"
+    instance_id: "{{ ec2_out.instances.0.id }}"
+    wait: yes
+
+- name: Delete the EC2 security group
+  ec2_group:
+    group_id: "{{ ec2_sg.group_id }}"
+    state: absent
+    region: "{{ region }}"

@@ -1,0 +1,7 @@
+instance_type: t2.large
+region: eu-central-1
+vpc_id: vpc-ad5a35c5
+key_name: jwajdaKeyPair
+image: ami-0eaec5838478eb0ba
+aws_access_key: xxx
+aws_secret_key: xxx

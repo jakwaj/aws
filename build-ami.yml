@@ -1,0 +1,34 @@
+---
+- name: LAUNCH EC2
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  roles:
+    - role: build_ec2
+  vars_files:
+    - vars/common.yml
+
+- name: BUILD NEXUS
+  hosts: "{{ server_name }}"
+  user: ec2-user
+  become: true
+  roles:
+    - role: build_nexus
+
+- name: NEW AMI
+  hosts: localhost
+  connection: localhost
+  gather_facts: yes
+  roles:
+    - role: create_new_ami
+  vars_files:
+    - vars/common.yml
+
+- name: TERMINATE EC2
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  roles:
+    - role: terminate_ec2
+  vars_files:
+    - vars/common.yml

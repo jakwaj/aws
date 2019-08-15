@@ -1,0 +1,326 @@
+Parameters:
+  AmiId:
+    Type: String
+    Description: ID of AMI used for EC2 instance
+  KeyName:
+    Type: String
+    Description: KeyPair file's name
+  InstanceType:
+    Type: String
+    Description: EC2 instance type
+  VpcNetBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: The network address block for the VPC
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  SubnetAz:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: The network address block for the subnet
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  SubnetAz2:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: The network address block for the subnet
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+
+Resources:
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref InstanceSubnet
+
+  SubnetRouteTableAssociation2:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref RouteTable2
+      SubnetId: !Ref InstanceSubnet2
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Platform
+          Value: nexus-repository-manager
+
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  Route:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref RouteTable
+      GatewayId: !Ref InternetGateway
+    DependsOn: VPCGatewayAttachment
+
+  Route2:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref RouteTable2
+      GatewayId: !Ref InternetGateway
+    DependsOn: VPCGatewayAttachment
+
+  RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref Vpc
+
+  RouteTable2:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref Vpc
+
+  InstanceSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: eu-central-1a
+      CidrBlock: !Ref SubnetAz
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+
+  InstanceSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: eu-central-1b
+      CidrBlock: !Ref SubnetAz2
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+
+  Vpc:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VpcNetBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: name
+          Value: MyVpc
+
+  EFS:
+    Type: 'AWS::EFS::FileSystem'
+    Properties:
+      FileSystemTags:
+        - Key: name
+          Value: MyEFS
+
+  MountTarget:
+    Type: 'AWS::EFS::MountTarget'
+    Properties:
+      FileSystemId: !Ref EFS
+      SubnetId: !Ref InstanceSubnet
+      SecurityGroups:
+        - !Ref MySecurityGroup
+
+  MountTarget2:
+    Type: 'AWS::EFS::MountTarget'
+    Properties:
+      FileSystemId: !Ref EFS
+      SubnetId: !Ref InstanceSubnet2
+      SecurityGroups:
+        - !Ref MySecurityGroup
+
+  MySecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable necessary ports
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '2049'
+          ToPort: '2049'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '8081'
+          ToPort: '8081'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !Ref LBSecurityGroup
+      VpcId: !Ref Vpc
+
+  LBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: LoadBalancer security group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '2049'
+          ToPort: '2049'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '8081'
+          ToPort: '8081'
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref Vpc
+
+  InstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+
+  RolePolicies:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: myPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'elasticloadbalancing:DeregisterTargets'
+              - 'elasticloadbalancing:RegisterTargets'
+            Resource:
+              - '*'
+      Roles:
+        - !Ref InstanceRole
+
+  IamInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  ASG:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      AutoScalingGroupName: MyASG
+      Cooldown: 300
+      DesiredCapacity: '1'
+      HealthCheckGracePeriod: 180
+      HealthCheckType: ELB
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      MaxSize: '3'
+      MinSize: '1'
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      VPCZoneIdentifier:
+        - Ref: InstanceSubnet
+        - Ref: InstanceSubnet2
+
+  LaunchConfiguration:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          Install:
+            - Install
+        Install:
+          commands:
+            c1:
+              command: !Sub "sudo mount -t nfs4 ${EFS}.efs.${AWS::Region}.amazonaws.com:/ /mnt/efs"
+            c2:
+              command: !Sub "sudo touch /start.sh ; sudo chmod 777 /start.sh ; echo '#!/bin/bash' > /start.sh ;\
+                            echo 'sudo touch /output' >> /start.sh ; echo 'sudo chmod 777 /output' >> /start.sh ;\
+                            echo 'while [ true ]; do' >> /start.sh ; echo 'service nexus start' >> /start.sh ;\
+                            echo 'sudo sleep 5' >> /start.sh ; echo 'sudo service nexus status | grep running > /output' >> /start.sh ;\
+                            echo 'if [ -s /output ]; then' >> /start.sh ; echo 'break' >> /start.sh ; echo 'fi' >> /start.sh ; echo 'done' >> /start.sh ;\
+                            echo 'sudo rm -f /output' >> /start.sh ; echo 'sudo sleep 30' >> /start.sh"
+            c3:
+              command: !Sub "sudo su nexus ; /start.sh"
+            c4:
+              command: !Sub "sudo rm -f /start.sh"
+            c5:
+              command: !Sub "sudo touch /mnt/efs/zxc ; sudo cp -r /mnt/efs/* /opt/sonatype-work/*/blobs/default/ ; sudo rm -f /mnt/efs/zxc /opt/sonatype-work/*/blobs/default/zxc"
+            c6:
+              command: !Sub "sudo echo '0 * * * * nexus rsync -a --delete /opt/sonatype-work/*/blobs/default /mnt/efs' >> /etc/crontab"
+    Properties:
+      IamInstanceProfile: !Ref IamInstanceProfile
+      ImageId: !Ref AmiId
+      InstanceMonitoring: false
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      LaunchConfigurationName: MyLC
+      SecurityGroups:
+        - !Ref MySecurityGroup
+      UserData: !Base64
+        Fn::Join:
+          - ''
+          - - |
+              #!/bin/bash -xe
+            - |
+              yum install -y aws-cfn-bootstrap
+            - |
+              # Install the files and packages from the metadata
+            - '/opt/aws/bin/cfn-init -v '
+            - '         --stack '
+            - !Ref 'AWS::StackName'
+            - '         --resource LaunchConfiguration '
+            - '         --configsets Install '
+            - '         --region '
+            - !Ref 'AWS::Region'
+            - |+
+
+  LoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: MyLB
+      SecurityGroups:
+        - !Ref LBSecurityGroup
+      Subnets:
+        - Ref: InstanceSubnet
+        - Ref: InstanceSubnet2
+
+  LoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        -
+          TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /
+      HealthCheckPort: 8081
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: "200-299"
+      Name: MyTargetGroup
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref Vpc

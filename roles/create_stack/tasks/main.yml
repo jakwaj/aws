@@ -1,0 +1,14 @@
+---
+- name: Create a cloudformation stack
+  cloudformation:
+    stack_name: 'MyFirstStack-{{ ansible_date_time.epoch }}'
+    state: present
+    region: "{{ region }}"
+    disable_rollback: true
+    template: "roles/create_stack/files/stack_template.yml"
+    template_parameters:
+      AmiId: "{{ ami_id }}"
+      KeyName: "{{ key_name }}"
+      InstanceType: "{{ instance_type }}"
+    tags:
+      Stack: myTag
