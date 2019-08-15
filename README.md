@@ -1,3 +1,5 @@
+<h3>README<h3>
+
 Creating new AMI:
 1. Set proper AWS_ACCESS_KEY, AWS_SECRET_KEY and key name in `vars/common.yml`.
 2. Run `build_ami.sh`.
